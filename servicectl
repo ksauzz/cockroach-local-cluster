@@ -1,0 +1,81 @@
+#!/bin/bash
+
+ROOT=$(cd `dirname $0`; pwd)
+
+usage() {
+  cat<<EOS
+
+usage
+-----
+  $0 start <node_count>
+  $0 stop <node_count>
+  $0 clean
+EOS
+}
+
+usage_with_exit() {
+  usage
+  exit 1
+}
+
+command_all() {
+  [ $# -ne 2 ] && usage_with_exit
+
+  func=$1
+  node_num=$2
+  for i in `seq 1 $node_num`; do
+    $func $i
+  done
+}
+
+start_node() {
+  id=$1
+  opts="--background "
+  opts="$opts --store=nodes/cockroach$id "
+  opts="$opts --port=$((26256 + $id)) "
+  opts="$opts --http-port=$((8079 + $id)) "
+  [ $id -ne 1 ] && opts="$opts --join=localhost:26257 "
+  echo "./cockroach start $opts"
+  ./cockroach start $opts
+}
+
+stop_node() {
+  id=$1
+  opts="--port=$((26256 + $id)) "
+  echo "./cockroach quit $opts"
+  ./cockroach quit $opts
+}
+
+download_binary() {
+  echo "Downloading a latest cockroach binary..."
+  wget -q https://binaries.cockroachdb.com/cockroach-latest.darwin-10.9-amd64.tgz
+
+  echo "Extracting an archive..."
+  tar zxf cockroach-latest.darwin-10.9-amd64.tgz
+  mv cockroach-latest.darwin-10.9-amd64/cockroach ./
+
+  rmdir cockroach-latest.darwin-10.9-amd64
+  rm cockroach-latest.darwin-10.9-amd64.tgz
+
+  echo "./cockroach version"
+  ./cockroach version
+}
+
+[ ! -f cockroach ] && download_binary
+
+case "$1" in
+  start)
+    shift
+    command_all start_node $@
+    ;;
+  stop)
+    shift
+    command_all stop_node $@
+    ;;
+  clean)
+    echo "Removing data..."
+    rm -rf nodes
+    ;;
+  *)
+    usage
+esac
